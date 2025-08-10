@@ -1,64 +1,93 @@
 #!/usr/bin/env python3
-#hello, Entry point script to train and evaluate the Robby Q‑learning agent
+#entry point script to train and evaluate the Robby Q-learning agent
 import json
+import argparse
 import pathlib
-from typing import List
 
-import matplotlib.pyplot as plt  # type: ignore
-import numpy as np  # type: ignore
+import numpy as np
+import matplotlib.pyplot as plt
 
 from .env import RobbyEnv
 from .agent import train, test_agent
 
 
-def moving_average(data: List[float], window_size: int) -> np.ndarray:
-    """Compute a simple moving average of the data."""
-    #hello, convert to numpy array
-    arr = np.array(data, dtype=float)
-    if window_size <= 0:
-        return arr
-    cumsum = np.cumsum(arr)
-    result = np.empty_like(arr)
-    for i in range(len(arr)):
-        start = max(0, i - window_size + 1)
-        count = i - start + 1
-        total = cumsum[i] - (cumsum[start - 1] if start > 0 else 0)
-        result[i] = total / count
-    return result
+#simple moving average for plotting
+def moving_average(x, w):
+    x = np.asarray(x, dtype=float)
+    if w <= 1 or len(x) == 0:
+        return x
+    c = np.cumsum(x)
+    c[w:] = c[w:] - c[:-w]
+    return c[w - 1:] / w
 
 
-def main() -> None:
-    #hello, create environment
-    env = RobbyEnv()
-    #hello, train the agent
-    Q, rewards = train(env)
-    #hello, save artifacts
-    output_dir = pathlib.Path(__file__).resolve().parent
-    np.save(output_dir / 'q_table.npy', Q)
-    np.save(output_dir / 'train_rewards.npy', np.array(rewards))
-    #hello, plot training rewards every 100 episodes and moving average
-    episodes = np.arange(len(rewards))
-    plt.figure()
-    plt.title('Training Reward (every 100 episodes)')
-    plt.xlabel('Episode')
-    plt.ylabel('Total reward')
-    #hello, scatter raw points every 100 episodes
-    plt.scatter(episodes[::100], np.array(rewards)[::100], s=2)
-    #hello, plot moving average with window 100
+def run(args):
+    #make outputs land in the current working directory
+    out_dir = pathlib.Path(".").resolve()
+
+    #hyperparams per assignment
+    alpha = 0.2
+    gamma = 0.9
+
+    #env + train
+    env = RobbyEnv(seed=args.seed)
+    Q, rewards = train(
+        env,
+        num_episodes=args.episodes,
+        steps_per_episode=args.steps,
+        alpha=alpha,
+        gamma=gamma,
+        epsilon_init=0.1,
+        decay_interval=50,
+        seed=args.seed,
+    )
+
+    #save artifacts
+    np.save(out_dir / "q_table.npy", Q)
+    np.save(out_dir / "train_rewards.npy", np.asarray(rewards, dtype=float))
+
+    #plot training reward: raw points every 100 eps + moving average
+    fig = plt.figure()
+    xs = np.arange(len(rewards))
+    pts_x = xs[xs % 100 == 0]
+    pts_y = np.asarray(rewards)[xs % 100 == 0]
+    plt.scatter(pts_x, pts_y, s=8)
     ma = moving_average(rewards, 100)
-    plt.plot(episodes, ma, linewidth=1)
-    plt.savefig(output_dir / 'training_reward.png', dpi=150)
-    plt.close()
-    #hello, test the trained agent
-    mean_reward, std_reward = test_agent(env, Q)
-    test_stats = {
-        'mean': mean_reward,
-        'std': std_reward,
-        'episodes': 5000,
-    }
-    with open(output_dir / 'test_stats.json', 'w', encoding='utf-8') as f:
-        json.dump(test_stats, f, indent=2)
+    if len(ma) > 0:
+        plt.plot(np.arange(99, 99 + len(ma)), ma)
+    plt.xlabel("episode")
+    plt.ylabel("sum of rewards")
+    plt.title(f"Training Reward (seed={args.seed})")
+    fig.tight_layout()
+    fig.savefig(out_dir / "training_reward.png")
+    plt.close(fig)
+
+    #test with epsilon=0.1
+    mean, std = test_agent(
+        env,
+        Q,
+        num_episodes=args.episodes,   #match the actual parameter name
+        steps_per_episode=args.steps, #match the actual parameter name
+        epsilon=0.1,
+        seed=(None if args.seed is None else args.seed + 1),
+)
+
+    #save + print test stats
+    stats = {"episodes": int(args.episodes), "mean": float(mean), "std": float(std)}
+    (out_dir / "test_stats.json").write_text(json.dumps(stats, indent=2))
+    print(f"test episodes: {stats['episodes']}")
+    print(f"test mean: {stats['mean']:.2f}")
+    print(f"test std: {stats['std']:.2f}")
 
 
-if __name__ == '__main__':
-    main()
+def parse_args():
+    p = argparse.ArgumentParser()
+    p.add_argument("--episodes", type=int, default=5000)
+    p.add_argument("--steps", type=int, default=200)
+    p.add_argument("--seed", type=int, default=42)
+    return p.parse_args()
+
+
+if __name__ == "__main__":
+    args = parse_args()
+    run(args)

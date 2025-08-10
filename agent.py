@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#hello, Implementation of the Q‑learning agent for the Robby environment
+#implementation of the Q‑learning agent for the Robby environment
 import numpy as np
 import random
 from typing import Tuple, List
@@ -33,13 +33,13 @@ def train(
     Returns:
         A tuple (Q_table, rewards_per_episode).
     """
-    #hello, initialize Q‑table with zeros (243 states × 5 actions)
+    #initialize Q‑table with zeros (243 states × 5 actions)
     Q = np.zeros((243, 5), dtype=float)
-    #hello, list to record cumulative reward per episode
+    #list to record cumulative reward per episode
     rewards_history: List[float] = []
-    #hello, random generator for reproducibility
+    #random generator for reproducibility
     rng = random.Random(seed)
-    #hello, iterate over episodes
+    #iterate over episodes
     for ep in range(num_episodes):
         state = env.reset()
         total_reward = 0.0
@@ -48,7 +48,7 @@ def train(
             action = select_action(Q, state, epsilon, rng)
             next_state, reward = env.step(action)
             total_reward += reward
-            #hello, Q‑learning update rule
+            #Q‑learning update rule
             best_next = np.max(Q[next_state])
             Q[state, action] += alpha * (reward + gamma * best_next - Q[state, action])
             state = next_state
@@ -77,7 +77,7 @@ def test_agent(
     Returns:
         A tuple (mean_reward, std_reward) of per‑episode total rewards.
     """
-    #hello, list for tracking rewards
+    #list for tracking rewards
     rewards: List[float] = []
     rng = random.Random(seed)
     for _ in range(num_episodes):
@@ -89,5 +89,5 @@ def test_agent(
             total += reward
             state = next_state
         rewards.append(total)
-    #hello, compute statistics
+    #compute statistics
     return float(np.mean(rewards)), float(np.std(rewards))
